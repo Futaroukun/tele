@@ -1,7 +1,7 @@
 # 🤖 JoyTelegram - Advanced Telegram Bot
 
 <p align="center">
-  <img src="src/thumbnail.jpg" alt="JoyTelegram" width="200" style="border-radius: 50%;">
+  <img src="src/thumbnail.jpg" alt="JoyTelegram" width="350" style="border-radius: 50%;">
 </p>
 
 <p align="center">
