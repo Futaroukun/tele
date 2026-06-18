@@ -589,8 +589,19 @@ export async function initBot() {
                 if (!isCommand && !hasCustomPrefix && m.isGroup) continue;
                 if (typeof plugin !== "function") continue;
                 
+                let noPrefix = '';
+                let matchCommand = false;
+                
                 if ((usedPrefix = (match?.[0] || "")[0])) {
-                    let noPrefix = m.text.replace(usedPrefix, "");
+                    noPrefix = m.text.replace(usedPrefix, "");
+                    matchCommand = true;
+                } else if (!m.isGroup && !plugin.customPrefix) {
+                    noPrefix = m.text;
+                    usedPrefix = '';
+                    matchCommand = true;
+                }
+                
+                if (matchCommand) {
                     let [command, ...args] = noPrefix
                         .trim()
                         .split(` `)
@@ -608,6 +619,25 @@ export async function initBot() {
                             : typeof plugin.command === "string"
                             ? plugin.command === command
                             : false;
+
+                    if (!isAccept && !usedPrefix && !m.isGroup) {
+                        let fullStripped = noPrefix.replace(/\s+/g, '').toLowerCase();
+                        let isAcceptFull =
+                            plugin.command instanceof RegExp
+                                ? plugin.command.test(fullStripped)
+                                : Array.isArray(plugin.command)
+                                ? plugin.command.some(cmd => (cmd instanceof RegExp ? cmd.test(fullStripped) : cmd === fullStripped))
+                                : typeof plugin.command === "string"
+                                ? plugin.command === fullStripped
+                                : false;
+                                
+                        if (isAcceptFull) {
+                            command = fullStripped;
+                            args = [];
+                            text = '';
+                            isAccept = true;
+                        }
+                    }
                             
                     if (!isAccept) continue;
                     m.plugin = name;

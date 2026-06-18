@@ -77,7 +77,7 @@ let handler = async (m, { conn, usedPrefix, command, text, isOwner }) => {
         const namatag = m.msg.from.username ? `@${m.msg.from.username}` : `[${name}](tg://user?id=${m.sender.split('@')[0]})`
         const age     = user.age === -1 ? 'Belum input umur' : `${user.age} Tahun`
         const limit   = user.limit === Infinity ? 'Unlimited' : (user.limit || 0)
-        const gender  = user.gender === 'male' ? '👨 Laki-Laki' : user.gender === 'female' ? '👩 Perempuan' : 'Belum input gender'
+        const gender  = user.gender === 'male' ? 'Laki-Laki' : user.gender === 'female' ? 'Perempuan' : 'Belum input gender'
 
         let status = 'Standard User'
         if      (user.banned)  status = 'Banned'
@@ -171,7 +171,7 @@ let handler = async (m, { conn, usedPrefix, command, text, isOwner }) => {
             (match, key) => replace[key] ?? match
         )
 
-        // Konstruksi Inline Keyboard untuk Telegram
+        // Konstruksi Inline Keyboard untuk Telegram dengan tombol fitur dinamis
         let inlineMarkup = null;
         if (!menuType) {
             const tagList = Object.keys(tags)
@@ -187,12 +187,43 @@ let handler = async (m, { conn, usedPrefix, command, text, isOwner }) => {
                 }
                 buttons.push(row);
             }
-            buttons.push([{ text: '📊 Tampilkan Semua Fitur', callback_data: 'menu all' }]);
+            buttons.push([{ text: 'Tampilkan Semua Fitur', callback_data: 'menu all' }]);
+            inlineMarkup = { inline_keyboard: buttons };
+        } else if (menuType !== 'all' && tags[menuType] && activeTags.has(menuType)) {
+            const tag = menuType;
+            const filtered = help.filter(p => p.tags?.includes(tag) && p.help);
+            
+            const cmdButtons = [];
+            for (const p of filtered) {
+                for (const helpStr of p.help) {
+                    const cmdName = helpStr.split(' ')[0].replace(/[^a-zA-Z0-9]/g, '');
+                    if (!cmdName) continue;
+                    
+                    const btnText = cmdName.charAt(0).toUpperCase() + cmdName.slice(1);
+                    
+                    cmdButtons.push({
+                        text: btnText,
+                        callback_data: `cmd ${cmdName}`
+                    });
+                }
+            }
+            
+            const buttons = [];
+            for (let i = 0; i < cmdButtons.length; i += 2) {
+                const row = [];
+                row.push(cmdButtons[i]);
+                if (cmdButtons[i+1]) {
+                    row.push(cmdButtons[i+1]);
+                }
+                buttons.push(row);
+            }
+            
+            buttons.push([{ text: 'Kembali ke Menu Utama', callback_data: 'menu' }]);
             inlineMarkup = { inline_keyboard: buttons };
         } else {
             inlineMarkup = {
                 inline_keyboard: [
-                    [{ text: '⬅️ Kembali ke Menu Utama', callback_data: 'menu' }]
+                    [{ text: 'Kembali ke Menu Utama', callback_data: 'menu' }]
                 ]
             };
         }
