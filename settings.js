@@ -13,7 +13,7 @@ global.info = {
 }
 
 // ===== THUMBNAIL =====
-global.thum = "https://api.cloudsky.biz.id/file?key=kurumi-bot/1766671505860.jpg";
+global.thum = "https://raw.githubusercontent.com/Futaroukun/tele/main/src/thumbnail.jpg";
 
 // ===== LINK ====
 global.lgh = "https://github.com/Futaroukun"; // Github
