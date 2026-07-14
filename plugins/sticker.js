@@ -120,7 +120,13 @@ async function processStickerSession(m, conn, senderId) {
             }
             
             const botUsername = global.tgBotInfo?.username || 'Jangchaerin_bot';
-            const packName = `pack_${userId}_${Date.now()}_by_${botUsername}`;
+            let basePackName = `pack_${userId}_${Date.now()}`;
+            const suffix = `_by_${botUsername}`;
+            if ((basePackName + suffix).length > 64) {
+                const allowedLength = 64 - suffix.length;
+                basePackName = basePackName.substring(0, allowedLength);
+            }
+            const packName = basePackName + suffix;
             const packTitle = `Pack Stiker @${username}`;
             
             const inputStickers = fileIds.map(fileId => ({

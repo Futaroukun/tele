@@ -1,0 +1,13 @@
+{
+  "users": {
+    "8679700912@t.me": {
+      "^(menu|help|start)$": 1784025301488,
+      "^(menu|help|start)$__notified": false,
+      "^(fandom|wikia)$": 1784025213880,
+      "^(fandom|wikia)$__notified": false,
+      "^(wiki|wikipedia)$": 1784025241269,
+      "^(wiki|wikipedia)$__notified": false
+    }
+  },
+  "global": {}
+}

@@ -72,7 +72,7 @@ export async function initBot() {
                 lid: `${botInfo.id}@t.me`
             },
             
-            getFile: async function(PATH, saveToFile = false) {
+            getFile: async function(PATH, saveToFile = false, fetchOptions = {}) {
                  let res, filename, isTemp = false;
                  const data = Buffer.isBuffer(PATH)
                     ? PATH
@@ -81,7 +81,7 @@ export async function initBot() {
                     : /^data:.*?\/.*?;base64,/i.test(PATH)
                     ? Buffer.from(PATH.split`,`[1], "base64")
                     : /^https?:\/\//.test(PATH)
-                    ? (res = await fetch(PATH), Buffer.from(await res.arrayBuffer()))
+                    ? (res = await fetch(PATH, fetchOptions), Buffer.from(await res.arrayBuffer()))
                     : fs.existsSync(PATH)
                     ? ((filename = PATH), fs.readFileSync(PATH))
                     : typeof PATH === "string"
@@ -111,7 +111,7 @@ export async function initBot() {
                  };
             },
             
-            sendMedia: async function(chatId, method, file, extra) {
+            sendMedia: async function(chatId, method, file, extra, fetchOptions = {}) {
                 const isUrl = typeof file === 'string' && /^https?:\/\//.test(file);
                 
                 if (isUrl) {
@@ -123,8 +123,14 @@ export async function initBot() {
                 }
                 
                 // Fallback / Buffer / Path Lokal
-                const type = await this.getFile(file, true);
+                const type = await this.getFile(file, true, fetchOptions);
                 const { data, ext } = type;
+                
+                if (data.length > 50 * 1024 * 1024) {
+                    if (type.deleteFile) await type.deleteFile().catch(() => {});
+                    throw new Error("Ukuran file melebihi batas Telegram Bot API (50 MB)");
+                }
+                
                 const fileSource = { source: data, filename: `file${ext}` };
                 
                 try {
@@ -172,26 +178,26 @@ export async function initBot() {
                 if (content.image) {
                     const photo = content.image.url || content.image;
                     const caption = parseMode === 'HTML' ? formatWhatsAppToHTML(content.caption || '') : (content.caption || '');
-                    return await this.sendMedia(chat_id, 'sendPhoto', photo, { ...extra, caption });
+                    return await this.sendMedia(chat_id, 'sendPhoto', photo, { ...extra, caption }, options.fetchOptions || content.fetchOptions || {});
                 }
                 if (content.video) {
                     const video = content.video.url || content.video;
                     const caption = parseMode === 'HTML' ? formatWhatsAppToHTML(content.caption || '') : (content.caption || '');
-                    return await this.sendMedia(chat_id, 'sendVideo', video, { ...extra, caption });
+                    return await this.sendMedia(chat_id, 'sendVideo', video, { ...extra, caption }, options.fetchOptions || content.fetchOptions || {});
                 }
                 if (content.document) {
                     const document = content.document.url || content.document;
                     const caption = parseMode === 'HTML' ? formatWhatsAppToHTML(content.caption || '') : (content.caption || '');
-                    return await this.sendMedia(chat_id, 'sendDocument', document, { ...extra, caption });
+                    return await this.sendMedia(chat_id, 'sendDocument', document, { ...extra, caption }, options.fetchOptions || content.fetchOptions || {});
                 }
                 if (content.audio) {
                     const audio = content.audio.url || content.audio;
                     const caption = parseMode === 'HTML' ? formatWhatsAppToHTML(content.caption || '') : (content.caption || '');
-                    return await this.sendMedia(chat_id, 'sendAudio', audio, { ...extra, caption });
+                    return await this.sendMedia(chat_id, 'sendAudio', audio, { ...extra, caption }, options.fetchOptions || content.fetchOptions || {});
                 }
                 if (content.sticker) {
                     const sticker = content.sticker.url || content.sticker;
-                    return await this.sendMedia(chat_id, 'sendSticker', sticker, extra);
+                    return await this.sendMedia(chat_id, 'sendSticker', sticker, extra, options.fetchOptions || content.fetchOptions || {});
                 }
                 if (content.react) {
                     const msgId = options.key?.id || content.react.key?.id;
@@ -249,7 +255,7 @@ export async function initBot() {
                     method = 'sendSticker';
                 }
                 
-                return await this.sendMedia(chat_id, method, path, extra);
+                return await this.sendMedia(chat_id, method, path, extra, options.fetchOptions || {});
             },
             
             reply: async function(chat, text = '', quoted, options) {
@@ -288,7 +294,7 @@ export async function initBot() {
                 if (mime) {
                     const mediaFile = content[mime].url || content[mime];
                     const method = mime === 'image' ? 'sendPhoto' : mime === 'video' ? 'sendVideo' : mime === 'audio' ? 'sendAudio' : 'sendDocument';
-                    return await this.sendMedia(chat_id, method, mediaFile, { ...extra, caption: formattedText });
+                    return await this.sendMedia(chat_id, method, mediaFile, { ...extra, caption: formattedText }, options.fetchOptions || content.fetchOptions || {});
                 }
                 
                 return await bot.telegram.sendMessage(chat_id, formattedText, extra);
@@ -331,6 +337,67 @@ export async function initBot() {
                 }
                 
                 return idStr;
+            },
+            
+            sendAlbum: async function(chat, albumItems, options = {}) {
+                const chat_id = chat.replace('@t.me', '');
+                let reply_to = null;
+                if (options.quoted && options.quoted.id) {
+                    reply_to = { message_id: parseInt(options.quoted.id) };
+                }
+                
+                const parseMode = options.parse_mode || 'HTML';
+                const extra = {
+                    ...(reply_to ? { reply_parameters: reply_to } : {})
+                };
+                
+                const mediaGroup = [];
+                const tempFiles = [];
+                
+                try {
+                    for (const item of albumItems) {
+                        let type = 'photo';
+                        let media = '';
+                        let caption = '';
+                        
+                        if (item.image) {
+                            type = 'photo';
+                            media = item.image.url || item.image;
+                            caption = item.caption || '';
+                        } else if (item.video) {
+                            type = 'video';
+                            media = item.video.url || item.video;
+                            caption = item.caption || '';
+                        } else {
+                            continue;
+                        }
+                        
+                        const formattedCaption = parseMode === 'HTML' ? formatWhatsAppToHTML(caption) : caption;
+                        
+                        const fileType = await this.getFile(media, true, options.fetchOptions || {});
+                        if (fileType.deleteFile) tempFiles.push(fileType);
+                        
+                        const { data, ext } = fileType;
+                        if (data.length > 50 * 1024 * 1024) {
+                            throw new Error("Ukuran file melebihi batas Telegram Bot API (50 MB)");
+                        }
+                        
+                        mediaGroup.push({
+                            type,
+                            media: { source: data, filename: `file${ext}` },
+                            ...(formattedCaption ? { caption: formattedCaption } : {}),
+                            parse_mode: parseMode
+                        });
+                    }
+                    
+                    if (mediaGroup.length === 0) return;
+                    
+                    return await bot.telegram.sendMediaGroup(chat_id, mediaGroup, extra);
+                } finally {
+                    for (const temp of tempFiles) {
+                        if (temp.deleteFile) await temp.deleteFile().catch(() => {});
+                    }
+                }
             }
         };
 
@@ -522,18 +589,9 @@ export async function initBot() {
                 }
             }
             
-            // 5. Informasi Admin Grup
+            // 5. Informasi Admin Grup (Akan di-load secara lazy jika dibutuhkan)
             let isAdmin = false;
             let isBotAdmin = false;
-            if (m.isGroup) {
-                try {
-                    const member = await ctx.telegram.getChatMember(ctx.chat.id, ctx.from.id);
-                    isAdmin = ['administrator', 'creator'].includes(member.status);
-                    
-                    const botMember = await ctx.telegram.getChatMember(ctx.chat.id, botInfo.id);
-                    isBotAdmin = ['administrator', 'creator'].includes(botMember.status);
-                } catch {}
-            }
             
             // 6. Jalankan Plugin
             const cmdPref = (global.prefix.exec(m.text) || [])[0];
@@ -663,6 +721,17 @@ export async function initBot() {
                         global.dFail("group", m, tgConn);
                         continue;
                     }
+                    // Fetch group admin status lazily only when command matches and it's a group
+                    if (m.isGroup && (plugin.admin || plugin.botAdmin) && !isAdmin && !isBotAdmin) {
+                        try {
+                            const member = await ctx.telegram.getChatMember(ctx.chat.id, ctx.from.id);
+                            isAdmin = ['administrator', 'creator'].includes(member.status);
+                            
+                            const botMember = await ctx.telegram.getChatMember(ctx.chat.id, botInfo.id);
+                            isBotAdmin = ['administrator', 'creator'].includes(botMember.status);
+                        } catch {}
+                    }
+
                     if (plugin.botAdmin && !isBotAdmin) {
                         global.dFail("botAdmin", m, tgConn);
                         continue;
@@ -717,6 +786,9 @@ export async function initBot() {
                     
                     // Eksekusi Plugin
                     try {
+                        // Set Cooldown sebelum eksekusi
+                        setCooldown(senderJid, primaryCommand);
+
                         await plugin.call(tgConn, m, {
                             conn: tgConn,
                             text,

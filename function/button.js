@@ -41,6 +41,20 @@ export function parseWhatsAppButtons(content) {
                 console.error('[BUTTON PARSER] Gagal parsing quick_reply JSON:', e);
             }
         }
+        // 2b. WhatsApp native "cta_url" (URL Button)
+        else if (btn.name === 'cta_url' && btn.buttonParamsJson) {
+            try {
+                const params = JSON.parse(btn.buttonParamsJson);
+                if (params.url) {
+                    inline_keyboard.push([{
+                        text: params.display_text || 'Buka Link',
+                        url: params.url
+                    }]);
+                }
+            } catch (e) {
+                console.error('[BUTTON PARSER] Gagal parsing cta_url JSON:', e);
+            }
+        }
         // 3. Format tombol WhatsApp sederhana: [{ buttonId: "id", buttonText: { displayText: "text" } }]
         else if (btn.buttonId) {
             const text = btn.buttonText?.displayText || btn.buttonText || btn.buttonId;

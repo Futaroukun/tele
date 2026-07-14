@@ -83,7 +83,7 @@ if (!existsSync(tmpFolder)) mkdirSync(tmpFolder, { recursive: true });
 // Plugin system
 global.plugins = {};
 const pluginFolder = global.__dirname(join(__dirname, "./plugins/index"));
-const pluginFilter = filename => /\.js$/.test(filename);
+const pluginFilter = filename => filename && typeof filename === 'string' && /\.js$/.test(filename);
 
 // Make sure plugins directory exists
 if (!existsSync(pluginFolder)) mkdirSync(pluginFolder, { recursive: true });

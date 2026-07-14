@@ -110,15 +110,14 @@ async function processDownload(m, conn, tiktokUrl) {
 
         const { mp4, mp3, images, caption: savetikCaption, videoId } = savetikResult
 
-        if (loadingMsg) {
-            const chatId = m.chat.replace('@t.me', '');
-            const msgId = loadingMsg.message_id || (loadingMsg.key && loadingMsg.key.id);
-            if (msgId) {
-                await global.tgBot.telegram.deleteMessage(chatId, msgId).catch(() => {})
-            }
-        }
-
         if (!mp4 && images.length === 0) {
+            if (loadingMsg) {
+                const chatId = m.chat.replace('@t.me', '');
+                const msgId = loadingMsg.message_id || (loadingMsg.key && loadingMsg.key.id);
+                if (msgId) {
+                    await global.tgBot.telegram.deleteMessage(chatId, msgId).catch(() => {})
+                }
+            }
             return m.reply('Tidak ada media yang ditemukan. Coba cek link atau coba lagi nanti.')
         }
 
@@ -229,6 +228,15 @@ async function processDownload(m, conn, tiktokUrl) {
                     }
                 })
             }
+        }
+
+        if (loadingMsg) {
+            const chatId = m.chat.replace('@t.me', '');
+            const msgId = loadingMsg.message_id || (loadingMsg.key && loadingMsg.key.id);
+            if (msgId) {
+                await global.tgBot.telegram.deleteMessage(chatId, msgId).catch(() => {})
+            }
+            loadingMsg = null;
         }
 
         // Tampilkan tombol penyelesaian tanpa emoji
