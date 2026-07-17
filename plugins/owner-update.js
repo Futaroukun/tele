@@ -66,7 +66,8 @@ async function runGit(command, retries = 0) {
         const { stdout, stderr } = await exec(command, {
             timeout  : 30000,
             maxBuffer: 1024 * 1024 * 10,
-            cwd      : process.cwd()
+            cwd      : process.cwd(),
+            env      : { ...process.env, GIT_TERMINAL_PROMPT: '0' }
         })
         return { success: true, stdout, stderr }
     } catch (error) {
