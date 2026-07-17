@@ -8,6 +8,7 @@ import cp from 'child_process'
 import { promisify } from 'util'
 import cron from 'node-cron'
 import chalk from 'chalk'
+import axios from 'axios'
 
 async function deleteMsg(conn, m, msg) {
     if (!msg) return;
@@ -33,7 +34,6 @@ const sessions = {}
 function getCredentials() {
     return global.db.data?.pluginSettings?.['owner-update.js']?.credentials || null
 }
-
 function saveCredentials(email, username, token) {
     if (!global.db.data.pluginSettings) global.db.data.pluginSettings = {}
     global.db.data.pluginSettings['owner-update.js'] = {
@@ -41,6 +41,29 @@ function saveCredentials(email, username, token) {
         credentials: { email, username, token }
     }
     global.saveData('pluginSettings')
+}
+async function verifyGitHubCredentials(username, token) {
+    try {
+        const response = await axios.get('https://api.github.com/user', {
+            headers: {
+                'Authorization': `token ${token}`,
+                'User-Agent': 'NodeJS-GitHub-Client'
+            },
+            timeout: 10000
+        });
+        
+        const login = response.data?.login;
+        if (login && login.toLowerCase() === username.toLowerCase()) {
+            return { valid: true, realUsername: login };
+        }
+        return { valid: false, reason: `Username tidak cocok. Anda menginput "${username}", sedangkan Token ini terdaftar atas nama akun "@${login}".` };
+    } catch (e) {
+        const status = e.response?.status;
+        if (status === 401 || status === 403) {
+            return { valid: false, reason: 'Token Personal Access Token (PAT) salah atau sudah kedaluwarsa.' };
+        }
+        return { valid: false, reason: `Gagal terhubung ke GitHub: ${e.message} (Periksa jaringan/koneksi internet).` };
+    }
 }
 
 const CONFIG = {
@@ -584,9 +607,18 @@ handler.before = async function (m, { conn }) {
 
     if (session.step === 'confirm') {
         if (/^(ya|yes|ok|simpan)$/i.test(textInput)) {
-            saveCredentials(session.email, session.username, session.token);
+            await m.reply('⏳ _Sedang memverifikasi kredensial Anda ke GitHub..._');
+            
+            const check = await verifyGitHubCredentials(session.username, session.token);
+            if (!check.valid) {
+                delete sessions[senderId];
+                await m.reply(`❌ *VALIDASI GAGAL*\n\nDetail kesalahan:\n${check.reason}\n\nKonfigurasi dibatalkan. Silakan ketik \`.update login\` jika ingin mengulang kembali.`);
+                return true;
+            }
+
+            saveCredentials(session.email, check.realUsername, session.token);
             delete sessions[senderId];
-            await m.reply('🎉 *KREDENSIAL GITHUB BERHASIL DISIMPAN!*\n\nKredensial Anda telah disimpan di database. Silakan jalankan perintah `.update` kembali untuk memulai proses update.');
+            await m.reply(`🎉 *KREDENSIAL GITHUB BERHASIL DISIMPAN!*\n\nKredensial Anda terverifikasi sebagai @${check.realUsername} dan disimpan di database. Silakan jalankan perintah \`.update\` kembali untuk memulai proses update.`);
         } else if (/^(batal|cancel|tidak|no)$/i.test(textInput)) {
             delete sessions[senderId];
             await m.reply('❌ Konfigurasi kredensial dibatalkan.');
