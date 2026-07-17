@@ -4,7 +4,7 @@ import { fileURLToPath } from "url";
 
 // ===== CONFIG =====
 global.owner = ["8679700912"]; // Ganti dengan ID Telegram numerik Anda
-global.telegramToken = "8060797560:AAGi4dZii-guOHiyFYlTDLt5lSWS9EfSA_I";
+global.telegramToken = "8320243362:AAE71Y3O6UBFCCZgYWdKCs51HNDYMJHeJQM";
 
 global.info = {
     namabot: "Joy Telegram",
