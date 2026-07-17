@@ -28,6 +28,21 @@ const exec = promisify(cp.exec).bind(cp)
 let cronJob     = null
 let isProcessing = false
 
+const sessions = {}
+
+function getCredentials() {
+    return global.db.data?.pluginSettings?.['owner-update.js']?.credentials || null
+}
+
+function saveCredentials(email, username, token) {
+    if (!global.db.data.pluginSettings) global.db.data.pluginSettings = {}
+    global.db.data.pluginSettings['owner-update.js'] = {
+        ...(global.db.data.pluginSettings['owner-update.js'] || {}),
+        credentials: { email, username, token }
+    }
+    global.saveData('pluginSettings')
+}
+
 const CONFIG = {
     git      : { email: 'raflisetiawan093@gmail.com', name: 'Futaroukun' },
     schedule : '0 0 * * *',
@@ -432,6 +447,81 @@ const handler = async (m, { conn, args, command, usedPrefix }) => {
         await deleteMsg(conn, m, loading)
         m.reply(`*Terjadi kesalahan.*\n\n${e.message}`)
     }
+}
+
+handler.before = async function (m, { conn }) {
+    const senderId = m.sender;
+    const session = sessions[senderId];
+    if (!session) return false;
+
+    // Skip intercept if owner runs update commands directly
+    if (m.text?.startsWith('/') || m.text?.startsWith('.')) {
+        const cmd = m.text.slice(1).split(' ')[0].toLowerCase();
+        if (['update', 'push', 'u', 'autoupdate'].includes(cmd)) {
+            return false;
+        }
+    }
+
+    const textInput = m.text?.trim() || '';
+
+    if (session.step === 'email') {
+        if (!textInput || !textInput.includes('@')) {
+            await m.reply('❌ Format email tidak valid. Silakan masukkan email GitHub yang benar:');
+            return true;
+        }
+        session.email = textInput;
+        session.step = 'username';
+        await m.reply('✅ Email disimpan.\n\n*Langkah 2:* Masukkan Username GitHub Anda:');
+        return true;
+    }
+
+    if (session.step === 'username') {
+        if (!textInput || textInput.length < 2) {
+            await m.reply('❌ Username terlalu pendek. Silakan masukkan username GitHub yang benar:');
+            return true;
+        }
+        session.username = textInput;
+        session.step = 'token';
+        await m.reply('✅ Username disimpan.\n\n*Langkah 3:* Masukkan GitHub Personal Access Token (PAT) Anda:\n_(Contoh: ghp_xxxx...)_');
+        return true;
+    }
+
+    if (session.step === 'token') {
+        if (!textInput || textInput.length < 10) {
+            await m.reply('❌ Token terlalu pendek atau tidak valid. Silakan masukkan token GitHub yang benar:');
+            return true;
+        }
+        session.token = textInput;
+        session.step = 'confirm';
+
+        const obfuscatedToken = session.token.substring(0, 8) + '...' + session.token.substring(session.token.length - 4);
+        const confirmationMsg = 
+            `*KONFIRMASI GITHUB KREDENSIAL*\n\n` +
+            `Silakan periksa kembali data Anda sebelum konfirmasi:\n\n` +
+            `• *Email:* ${session.email}\n` +
+            `• *Username:* ${session.username}\n` +
+            `• *Token:* ${obfuscatedToken}\n\n` +
+            `Ketik *YA* untuk menyimpan kredensial, atau *BATAL* untuk mengulang:`;
+
+        await m.reply(confirmationMsg);
+        return true;
+    }
+
+    if (session.step === 'confirm') {
+        if (/^(ya|yes|ok|simpan)$/i.test(textInput)) {
+            saveCredentials(session.email, session.username, session.token);
+            delete sessions[senderId];
+            await m.reply('🎉 *KREDENSIAL GITHUB BERHASIL DISIMPAN!*\n\nKredensial Anda telah disimpan di database. Silakan jalankan perintah `.update` kembali untuk memulai proses update.');
+        } else if (/^(batal|cancel|tidak|no)$/i.test(textInput)) {
+            delete sessions[senderId];
+            await m.reply('❌ Konfigurasi kredensial dibatalkan.');
+        } else {
+            await m.reply('Ketik *YA* untuk mengonfirmasi, atau *BATAL* untuk membatalkan pendaftaran.');
+        }
+        return true;
+    }
+
+    return false;
 }
 
 handler.help    = ['update [commit]', 'autoupdate']
