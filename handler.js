@@ -7,6 +7,7 @@ import chalk from 'chalk';
 import { fileTypeFromBuffer } from 'file-type';
 import { getCommandCooldown, checkCooldown, setCooldown, isCooldownNotified, setCooldownNotified } from './function/cooldown.js';
 import { parseWhatsAppButtons } from './function/button.js';
+import { runDiagnostics } from './function/diagnostics.js';
 
 // Mengubah format bold/italic WhatsApp (*text*, _text_) menjadi tag HTML Telegram (<b>text</b>, <i>text</i>) secara aman
 function formatWhatsAppToHTML(text) {
@@ -60,7 +61,7 @@ export async function initBot() {
     try {
         const bot = new Telegraf(global.telegramToken);
         const botInfo = await bot.telegram.getMe();
-        console.log(`${chalk.white.bold(" [TELEGRAM]")} ${chalk.green.bold(`Bot Telegram Aktif! Username: @${botInfo.username}`)}`);
+        runDiagnostics(botInfo, null);
         
         global.tgBotInfo = botInfo;
         global.tgBot = bot;
@@ -868,6 +869,6 @@ export async function initBot() {
         });
         
     } catch (e) {
-        console.error(chalk.red(" [TELEGRAM ERROR] Gagal inisialisasi bot:"), e.message);
+        runDiagnostics(null, e);
     }
 }
