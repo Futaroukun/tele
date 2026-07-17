@@ -13,25 +13,25 @@ function getGitSetupStatus() {
 
 function getDatabaseStatus() {
     try {
-        if (!global.sqlite) return chalk.red('❌ DISCONNECTED');
+        if (!global.sqlite) return chalk.red('DISCONNECTED');
         const res = global.sqlite.prepare('SELECT 1 as ok').get();
         if (res && res.ok === 1) {
             return chalk.green('SQLite WAL Mode -> OK');
         }
-        return chalk.red('❌ QUERY FAILED');
+        return chalk.red('QUERY FAILED');
     } catch (e) {
-        return chalk.red(`❌ ERROR (${e.message})`);
+        return chalk.red(`ERROR (${e.message})`);
     }
 }
 
 function getOwnerStatus() {
     const owners = global.owner || [];
     if (owners.length === 0) {
-        return chalk.red('❌ NO OWNER DEFINED');
+        return chalk.red('NO OWNER DEFINED');
     }
     // Check if the owner array contains only the template default ID
     if (owners.includes('8679700912')) {
-        return chalk.yellow('⚠️ DEFAULT (Please edit settings.js)');
+        return chalk.yellow('WARNING (Default ID)');
     }
     return chalk.green('OK (Custom configured)');
 }
@@ -58,29 +58,30 @@ export function runDiagnostics(botInfo, error) {
         botNameLine = chalk.cyan(`${botInfo.first_name} (@${botInfo.username})`);
         tokenStatusLine = chalk.green('ACTIVE (VALID)');
     } else {
-        botNameLine = chalk.red('❌ CONNECTION FAILED');
+        botNameLine = chalk.red('CONNECTION FAILED');
         const errStr = error?.message || 'Unknown network error';
-        tokenStatusLine = chalk.red(`❌ ERROR (${errStr})`);
+        tokenStatusLine = chalk.red(`ERROR (${errStr})`);
     }
 
     const sysInfo = `${os.platform()} (${os.arch()}) | Node.js ${process.version}`;
 
     // Gather all fields
     const diagnostics = [
-        { label: '🤖 Bot Name', value: botNameLine },
-        { label: '🔑 Token Status', value: tokenStatusLine },
-        { label: '👑 Owner ID', value: getOwnerStatus() },
-        { label: '🗄️ Database', value: getDatabaseStatus() },
-        { label: '⚙️ Git Setup', value: getGitSetupStatus() },
-        { label: '🔌 Plugins', value: getPluginCount() },
-        { label: '🖥️ OS Platform', value: chalk.blue(sysInfo) }
+        { label: 'Bot Name', value: botNameLine },
+        { label: 'Token Status', value: tokenStatusLine },
+        { label: 'Owner ID', value: getOwnerStatus() },
+        { label: 'Database', value: getDatabaseStatus() },
+        { label: 'Git Setup', value: getGitSetupStatus() },
+        { label: 'Plugins', value: getPluginCount() },
+        { label: 'OS Platform', value: chalk.blue(sysInfo) }
     ];
 
     // Build the formatted UI
-    const borderTop    = '┌────────────────────────────────────────────────────────┐';
-    const titleLine    = '│               SISTEM KONTROL & DIAGNOSTIK              │';
-    const divider      = '├────────────────────────────────────────────────────────┤';
-    const borderBottom = '└────────────────────────────────────────────────────────┘';
+    const borderTop    = '┌' + '─'.repeat(58) + '┐';
+    const titleText    = '               SISTEM KONTROL & DIAGNOSTIK';
+    const titleLine    = '│' + titleText.padEnd(58) + '│';
+    const divider      = '├' + '─'.repeat(58) + '┤';
+    const borderBottom = '└' + '─'.repeat(58) + '┘';
 
     console.log('\n' + chalk.cyan.bold(borderTop));
     console.log(chalk.cyan.bold(titleLine));
