@@ -149,8 +149,12 @@ async function getChanges() {
 }
 
 async function smartCommit(stats) {
-    await runGit(`git config user.email "${CONFIG.git.email}"`)
-    await runGit(`git config user.name "${CONFIG.git.name}"`)
+    const creds = getCredentials()
+    const email = creds?.email || CONFIG.git.email
+    const name = creds?.username || CONFIG.git.name
+
+    await runGit(`git config user.email "${email}"`)
+    await runGit(`git config user.name "${name}"`)
 
     const results = []
     const groups  = [
@@ -174,12 +178,24 @@ async function smartCommit(stats) {
 }
 
 async function gitPush(branch) {
-    const r = await runGit(`git push origin ${branch}`)
+    const creds = getCredentials()
+    if (!creds) throw new Error('KREDENSIAL_BELUM_DIATUR')
+
+    const repo = await getRepoInfo()
+    const authUrl = `https://${creds.username}:${creds.token}@github.com/${repo.username}/${repo.repoName}.git`
+
+    const r = await runGit(`git push "${authUrl}" "${branch}"`)
     if (!r.success) {
         const msg = r.error.message
-        if (msg.includes('Authentication failed'))    throw new Error('Autentikasi gagal. Periksa kredensial Git.')
-        if (msg.includes('Could not resolve host'))   throw new Error('Tidak bisa terhubung ke GitHub. Cek koneksi internet.')
-        if (msg.includes('rejected'))                 throw new Error('Push ditolak. Mungkin ada perubahan yang belum di-pull.')
+        if (msg.includes('Authentication failed') || msg.includes('403') || msg.includes('401')) {
+            throw new Error('AUTH_FAILED')
+        }
+        if (msg.includes('Could not resolve host')) {
+            throw new Error('Tidak bisa terhubung ke GitHub. Cek koneksi internet.')
+        }
+        if (msg.includes('rejected')) {
+            throw new Error('Push ditolak. Mungkin ada perubahan yang belum di-pull.')
+        }
         throw new Error(`Gagal push: ${msg}`)
     }
 }
@@ -257,6 +273,18 @@ async function githubUpload(isAuto = false) {
                 `*Tidak ada yang perlu di-commit.*\n\n` +
                 `Semua perubahan sudah ter-commit sebelumnya.\n\n` +
                 `Waktu: ${getTimestamp()}`
+        }
+
+        if (err.message === 'KREDENSIAL_BELUM_DIATUR') return {
+            success: false,
+            setupRequired: true,
+            message: `*Kredensial belum diatur.*\n\nSilakan lengkapi konfigurasi akun GitHub Anda.`
+        }
+
+        if (err.message === 'AUTH_FAILED') return {
+            success: false,
+            setupRequired: true,
+            message: `*Autentikasi gagal.*\n\nToken atau username GitHub Anda salah / expired. Silakan atur ulang.`
         }
 
         return {
@@ -436,11 +464,58 @@ const handler = async (m, { conn, args, command, usedPrefix }) => {
         }, { quoted: m })
     }
 
+    const action = args[0]?.toLowerCase()
+
+    // Handle Reset/Login trigger
+    if (action === 'login' || action === 'reset' || action === 'setup') {
+        sessions[m.sender] = {
+            step: 'email',
+            email: '',
+            username: '',
+            token: ''
+        }
+        return m.reply(
+            `🔧 *KONFIGURASI KREDENSIAL GITHUB*\n\n` +
+            `Saya akan memandu Anda untuk mengatur kredensial Git agar dapat melakukan push otomatis.\n\n` +
+            `*Langkah 1:* Masukkan Email GitHub Anda:`
+        )
+    }
+
+    const creds = getCredentials()
+    if (!creds) {
+        sessions[m.sender] = {
+            step: 'email',
+            email: '',
+            username: '',
+            token: ''
+        }
+        return m.reply(
+            `⚠️ *KREDENSIAL GITHUB BELUM DIATUR*\n\n` +
+            `Untuk menggunakan fitur update, Anda harus mengonfigurasi email, username, dan token GitHub terlebih dahulu.\n\n` +
+            `*Langkah 1:* Masukkan Email GitHub Anda:`
+        )
+    }
+
     const loading = await m.reply('_Memproses upload ke GitHub, tunggu sebentar..._')
 
     try {
         const result = await githubUpload(false)
         await deleteMsg(conn, m, loading)
+        
+        if (result.setupRequired) {
+            sessions[m.sender] = {
+                step: 'email',
+                email: '',
+                username: '',
+                token: ''
+            }
+            return m.reply(
+                `⚠️ ${result.message}\n\n` +
+                `Memulai ulang konfigurasi otomatis.\n\n` +
+                `*Langkah 1:* Masukkan Email GitHub Anda:`
+            )
+        }
+
         await sendReport(conn, m.chat, result, 'manual', m)
     } catch (e) {
         console.error('[UPDATE]', e)
